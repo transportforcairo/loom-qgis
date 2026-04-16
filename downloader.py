@@ -30,7 +30,7 @@ from typing import Callable, Optional
 # Configuration
 # ---------------------------------------------------------------------------
 
-BINARIES_REPO  = "transportforcairo/loom-binaries"
+BINARIES_REPO  = "transportforcairo/loom_binaries"
 BINARIES_BRANCH = "main"
 
 # Base URL for raw file downloads

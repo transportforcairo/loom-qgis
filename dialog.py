@@ -371,6 +371,23 @@ class LoomDialog(QDialog):
         self.open_after = _cb("Open SVG in system viewer after generation")
         self.open_after.setChecked(True); f.addRow("", self.open_after)
 
+        # Webmap
+        self.webmap_enabled = _cb("Generate interactive webmap (HTML)")
+        self.webmap_enabled.setToolTip(
+            "Embeds the SVG in a self-contained HTML file with a MapLibre basemap,\n"
+            "hover tooltips, and basemap switcher. Opens directly in any browser."
+        )
+        f.addRow("", self.webmap_enabled)
+
+        self.webmap_path = QLineEdit()
+        self.webmap_path.setPlaceholderText("Webmap save path (e.g. output/map.html)")
+        r3 = QHBoxLayout(); r3.addWidget(self.webmap_path)
+        b3 = QPushButton("Browse"); b3.clicked.connect(self._browse_webmap); r3.addWidget(b3)
+        f.addRow("Webmap HTML:", r3)
+
+        self.webmap_open = _cb("Open webmap in browser after generation")
+        self.webmap_open.setChecked(True); f.addRow("", self.webmap_open)
+
         vb.addWidget(g)
         pg = QGroupBox("SVG Preview"); pvb = QVBoxLayout(pg)
         self.svg_preview = QTextEdit(); self.svg_preview.setReadOnly(True)
@@ -420,6 +437,10 @@ class LoomDialog(QDialog):
     def _browse_mvt(self):
         p = QFileDialog.getExistingDirectory(self, "Select MVT output folder")
         if p: self.mvt_path.setText(p)
+
+    def _browse_webmap(self):
+        p, _ = QFileDialog.getSaveFileName(self, "Save Webmap HTML", "", "HTML (*.html);;All (*)")
+        if p: self.webmap_path.setText(p)
 
     def _v(self, spinbox):
         """Return spinbox value or None if at minimum (= 'use default')."""
@@ -576,6 +597,34 @@ class LoomDialog(QDialog):
                     subprocess.Popen(["open", out_path])
                 else:
                     subprocess.Popen(["xdg-open", out_path])
+
+            # ── Webmap ────────────────────────────────────────────────
+            if self.webmap_enabled.isChecked():
+                wm_path = self.webmap_path.text().strip()
+                if not wm_path:
+                    # Auto-derive from SVG path or use temp dir
+                    if out_path:
+                        wm_path = os.path.splitext(out_path)[0] + "_webmap.html"
+                    else:
+                        import tempfile
+                        wm_path = os.path.join(tempfile.gettempdir(), "loom_webmap.html")
+                    self.webmap_path.setText(wm_path)
+                try:
+                    from .webmap_generator import generate as generate_webmap
+                    generate_webmap(result.svg_output, wm_path)
+                    self.iface.messageBar().pushMessage(
+                        "LOOM", f"Webmap written to: {wm_path}", level=0, duration=8
+                    )
+                    if self.webmap_open.isChecked() and os.path.isfile(wm_path):
+                        import subprocess, sys
+                        if sys.platform == "win32":
+                            os.startfile(wm_path)
+                        elif sys.platform == "darwin":
+                            subprocess.Popen(["open", wm_path])
+                        else:
+                            subprocess.Popen(["xdg-open", wm_path])
+                except Exception as e:
+                    QMessageBox.warning(self, "Webmap error", f"Failed to generate webmap:\n{e}")
 
         if result.mvt_path:
             self.iface.messageBar().pushMessage("LOOM", f"MVT tiles written to: {result.mvt_path}", level=0, duration=8)
